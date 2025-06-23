@@ -13,6 +13,7 @@ using PropertyChanged;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using XivToolsWpf;
 
@@ -120,7 +121,7 @@ public class TargetService : ServiceBase<TargetService>
 
 	public static PinnedActor? GetPinned(ActorBasicMemory actor)
 	{
-		foreach (PinnedActor pinned in TargetService.Instance.PinnedActors)
+		foreach (PinnedActor pinned in TargetService.Instance.PinnedActors.ToList())
 		{
 			if (pinned.Memory == null)
 				continue;
@@ -215,7 +216,13 @@ public class TargetService : ServiceBase<TargetService>
 		{
 			try
 			{
-				this.PlayerTarget.Synchronize();
+				var pinnedActor = this.PinnedActors.FirstOrDefault(pinned => pinned.Memory?.Address == this.PlayerTarget.Address);
+
+				// If the player target is pinned, synchronize through the pinned actor class. Otherwise synchronize directly.
+				if (pinnedActor != null)
+					pinnedActor.Tick();
+				else
+					this.PlayerTarget.Synchronize();
 			}
 			catch
 			{
@@ -424,14 +431,18 @@ public class TargetService : ServiceBase<TargetService>
 	{
 		while (this.IsAlive)
 		{
-			await Task.Delay(33);
+			this.UpdatePlayerTarget();
 
 			for (int i = this.PinnedActors.Count - 1; i >= 0; i--)
 			{
+				// Skip the player target as it is already updated in the preceding function call
+				if (this.PinnedActors[i].Memory?.Address == this.PlayerTarget.Address)
+					continue;
+
 				this.PinnedActors[i].Tick();
 			}
 
-			this.UpdatePlayerTarget();
+			await Task.Delay(33);
 		}
 	}
 

@@ -5,6 +5,7 @@ namespace Anamnesis.Views;
 
 using Anamnesis.Actor;
 using Anamnesis.Brio;
+using Anamnesis.Core;
 using Anamnesis.Files;
 using Anamnesis.Memory;
 using Anamnesis.Services;
@@ -183,13 +184,9 @@ public partial class TargetSelectorView : TargetSelectorDrawer
 
 	private async void OnCreateActorClicked(object sender, RoutedEventArgs e)
 	{
-		SpawnOptions options = SpawnOptions.None;
-		if (PoseService.Instance.IsEnabled || PoseService.Instance.FreezeWorldPosition)
-			options |= SpawnOptions.ApplyModelPosition;
-
 		try
 		{
-			var nextActorId = await Brio.Spawn(options);
+			var nextActorId = await Brio.Spawn();
 			if (nextActorId != -1)
 			{
 				var actors = ActorService.Instance.GetAllActors(true);
@@ -207,12 +204,11 @@ public partial class TargetSelectorView : TargetSelectorDrawer
 							if (new PoseFile().Deserialize(File.OpenRead(path)) is not PoseFile poseFile)
 								return;
 
-							SkeletonVisual3d skeletonVisual3D = new();
 							ActorMemory fullActor = new();
 							fullActor.SetAddress(newActor.Address);
 							fullActor.Synchronize();
-							await skeletonVisual3D.SetActor(fullActor);
-							poseFile.Apply(fullActor, skeletonVisual3D, null, PoseFile.Mode.Rotation, true);
+							var skeleton = new Skeleton(fullActor);
+							poseFile.Apply(fullActor, skeleton, null, PoseFile.Mode.Rotation, true);
 						}
 					}
 

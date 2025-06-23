@@ -4,10 +4,12 @@
 namespace Anamnesis.Memory;
 
 using Anamnesis.Actor.Utilities;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData;
 using PropertyChanged;
 using System;
 using System.Numerics;
+using static Anamnesis.Actor.Utilities.DyeUtility;
 
 public class WeaponMemory : MemoryBase, IEquipmentItemMemory
 {
@@ -29,7 +31,7 @@ public class WeaponMemory : MemoryBase, IEquipmentItemMemory
 	[DependsOn(nameof(WeaponFlags), nameof(IsSheathed))]
 	public bool WeaponHidden
 	{
-		get => (this.IsSheathed && this.WeaponFlags.HasFlag(WeaponFlagDefs.WeaponHidden)) || (!this.IsSheathed && this.Model?.Transform?.Scale == Vector3.Zero);
+		get => (this.IsSheathed && this.WeaponFlags.HasFlagUnsafe(WeaponFlagDefs.WeaponHidden)) || (!this.IsSheathed && this.Model?.Transform?.Scale == Vector3.Zero);
 		set
 		{
 			if (value)
@@ -63,15 +65,15 @@ public class WeaponMemory : MemoryBase, IEquipmentItemMemory
 	{
 		bool useEmperorsFists = true;
 
-		if (this.Parent is ActorMemory actor)
+		if (this.parent is ActorMemory actor)
 		{
 			if (actor.OffHand == this && actor.MainHand != null)
 			{
 				IItem? mainHandItem = ItemUtility.GetItem(ItemSlots.MainHand, actor.MainHand.Set, actor.MainHand.Base, actor.MainHand.Variant, actor.IsChocobo);
 
 				if (mainHandItem != null &&
-					(mainHandItem.EquipableClasses.HasFlag(Classes.Pugilist) ||
-					mainHandItem.EquipableClasses.HasFlag(Classes.Monk)))
+					(mainHandItem.EquipableClasses.HasFlagUnsafe(Classes.Pugilist) ||
+					mainHandItem.EquipableClasses.HasFlagUnsafe(Classes.Monk)))
 				{
 					useEmperorsFists = true;
 				}
@@ -87,5 +89,14 @@ public class WeaponMemory : MemoryBase, IEquipmentItemMemory
 		this.Variant = useEmperorsFists ? ItemUtility.EmperorsNewFists.ModelVariant : (ushort)0;
 		this.Dye = 0;
 		this.Dye2 = 0;
+	}
+
+	public void ApplyDye(IDye dye, DyeSlot dyeSlot)
+	{
+		if (dyeSlot.HasFlagUnsafe(DyeSlot.First))
+			this.Dye = (dye != null) ? dye.Id : DyeUtility.NoneDye.Id;
+
+		if (dyeSlot.HasFlagUnsafe(DyeSlot.Second))
+			this.Dye2 = (dye != null) ? dye.Id : DyeUtility.NoneDye.Id;
 	}
 }

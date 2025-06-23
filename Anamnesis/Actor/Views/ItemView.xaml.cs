@@ -3,15 +3,8 @@
 
 namespace Anamnesis.Actor.Views;
 
-using System;
-using System.ComponentModel;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using Anamnesis.Actor.Utilities;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData;
 using Anamnesis.GameData.Excel;
 using Anamnesis.Memory;
@@ -20,6 +13,14 @@ using Anamnesis.Styles.Drawers;
 using Anamnesis.Utils;
 using PropertyChanged;
 using Serilog;
+using System;
+using System.ComponentModel;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using XivToolsWpf;
 using XivToolsWpf.DependencyProperties;
 
@@ -29,7 +30,7 @@ using XivToolsWpf.DependencyProperties;
 [AddINotifyPropertyChangedInterface]
 public partial class ItemView : UserControl
 {
-	public static readonly IBind<ItemSlots> SlotDp = Binder.Register<ItemSlots, ItemView>("Slot");
+	public static readonly IBind<ItemSlots> SlotDp = Binder.Register<ItemSlots, ItemView>(nameof(Slot));
 	public static readonly IBind<IEquipmentItemMemory?> ItemModelDp = Binder.Register<IEquipmentItemMemory?, ItemView>(nameof(ItemModel), OnItemModelChanged, BindMode.TwoWay);
 	public static readonly IBind<WeaponSubModelMemory?> WeaponExModelDp = Binder.Register<WeaponSubModelMemory?, ItemView>(nameof(ExtendedViewModel));
 
@@ -72,39 +73,11 @@ public partial class ItemView : UserControl
 		set => WeaponExModelDp.Set(this, value);
 	}
 
-	public uint ItemKey
-	{
-		get
-		{
-			return this.Item?.RowId ?? 0;
-		}
-		set
-		{
-			IItem? item = GameDataService.Items?.Get(value);
-			this.SetItem(item);
-		}
-	}
+	public string SlotName => LocalizationService.GetString("Character_Equipment_" + this.Slot);
 
-	public string SlotName
-	{
-		get => LocalizationService.GetString("Character_Equipment_" + this.Slot);
-	}
+	public bool IsWeapon => (this.Slot & ItemSlots.Weapons) != 0;
 
-	public bool IsWeapon
-	{
-		get
-		{
-			return this.Slot == ItemSlots.MainHand || this.Slot == ItemSlots.OffHand;
-		}
-	}
-
-	public bool IsHead
-	{
-		get
-		{
-			return this.Slot == ItemSlots.Head;
-		}
-	}
+	public bool IsHead => this.Slot == ItemSlots.Head;
 
 	public bool IsValidWeapon
 	{
@@ -133,20 +106,20 @@ public partial class ItemView : UserControl
 
 			// Invalid if we're naked in some way other than Emperor's.
 			ushort[] invalidItems = { 0, 9901, 9903 };
-			if(invalidItems.Contains(this.Item.ModelBase))
+			if (invalidItems.Contains(this.Item.ModelBase))
 				return false;
 
 			// Invalid if row Id is 0, which would be the case if we have a
 			// set/subset combo which doesn't match an actual item.
-			if(this.Item.RowId == 0)
+			if (this.Item.RowId == 0)
 				return false;
 
 			// Most items will have the None category. Shop items will be premium, and old items will be deprecated.
 			// If we aren't one of these, then invalid. CustomEquipment is for things like Forum Attire.
-			bool isNormalCategory = this.Item.Category.HasFlag(ItemCategories.None) ||
-									this.Item.Category.HasFlag(ItemCategories.Standard) ||
-									this.Item.Category.HasFlag(ItemCategories.Premium) ||
-									this.Item.Category.HasFlag(ItemCategories.Limited);
+			bool isNormalCategory = this.Item.Category.HasFlagUnsafe(ItemCategories.None) ||
+									this.Item.Category.HasFlagUnsafe(ItemCategories.Standard) ||
+									this.Item.Category.HasFlagUnsafe(ItemCategories.Premium) ||
+									this.Item.Category.HasFlagUnsafe(ItemCategories.Limited);
 			if (!isNormalCategory)
 				return false;
 
@@ -161,7 +134,7 @@ public partial class ItemView : UserControl
 			if (this.Item == null)
 				return false;
 
-			if(this.Item.ModelBase == 0)
+			if (this.Item.ModelBase == 0)
 				return false;
 
 			return true;
@@ -226,7 +199,7 @@ public partial class ItemView : UserControl
 		}
 	}
 
-	private async void OnResetSlotClicked(object sender, RoutedEventArgs e)
+	private void OnResetSlotClicked(object sender, RoutedEventArgs e)
 	{
 		if (this.Actor == null)
 			return;
@@ -234,7 +207,7 @@ public partial class ItemView : UserControl
 		if (this.Actor.Pinned == null)
 			return;
 
-		await this.Actor.Pinned.RestoreCharacterBackup(PinnedActor.BackupModes.Original, this.Slot);
+		this.Actor.Pinned.RestoreCharacterBackup(PinnedActor.BackupModes.Original, this.Slot);
 	}
 
 	private void OnClearSlotClicked(object sender, RoutedEventArgs e)
@@ -315,7 +288,7 @@ public partial class ItemView : UserControl
 
 			if (autoOffhand && this.Slot == ItemSlots.MainHand
 				&& item is Item ivm
-				&& ivm.EquipSlot?.OffHand == -1)
+				&& ivm.EquipSlotCategory.Value.OffHand == -1)
 			{
 				if (ivm.HasSubModel)
 				{
@@ -410,6 +383,11 @@ public partial class ItemView : UserControl
 		if (this.lockViewModel)
 			return;
 
+		// Ignore changes from the Transform property
+		// This is because weapon model transforms are constantly updating, which causes constant the item view refreshes
+		if (e?.PropertyName == nameof(TransformMemory.Position) || e?.PropertyName == nameof(TransformMemory.Rotation) || e?.PropertyName == nameof(TransformMemory.Scale) || e?.PropertyName == nameof(WeaponModelMemory.Transform))
+			return;
+
 		Task.Run(async () =>
 		{
 			await Task.Yield();
@@ -432,8 +410,26 @@ public partial class ItemView : UserControl
 				if (valueVm is ItemMemory itemVm)
 				{
 					IItem? item = ItemUtility.GetItem(slots, 0, itemVm.Base, itemVm.Variant, this.Actor.IsChocobo);
-					IDye? dye = GameDataService.Dyes.Get(itemVm.Dye);
-					IDye? dye2 = GameDataService.Dyes.Get(itemVm.Dye2);
+					IDye? dye;
+					IDye? dye2;
+
+					try
+					{
+						dye = GameDataService.Dyes.GetRow(itemVm.Dye);
+					}
+					catch (ArgumentOutOfRangeException)
+					{
+						dye = DyeUtility.NoneDye;
+					}
+
+					try
+					{
+						dye2 = GameDataService.Dyes.GetRow(itemVm.Dye2);
+					}
+					catch (ArgumentOutOfRangeException)
+					{
+						dye2 = DyeUtility.NoneDye;
+					}
 
 					await Dispatch.MainThread();
 
@@ -448,8 +444,26 @@ public partial class ItemView : UserControl
 					if (weaponVm.Set == 0)
 						weaponVm.Dye = 0;
 
-					IDye? dye = GameDataService.Dyes.Get(weaponVm.Dye);
-					IDye? dye2 = GameDataService.Dyes.Get(weaponVm.Dye2);
+					IDye? dye;
+					IDye? dye2;
+
+					try
+					{
+						dye = GameDataService.Dyes.GetRow(weaponVm.Dye);
+					}
+					catch (ArgumentOutOfRangeException)
+					{
+						dye = DyeUtility.NoneDye;
+					}
+
+					try
+					{
+						dye2 = GameDataService.Dyes.GetRow(weaponVm.Dye2);
+					}
+					catch (ArgumentOutOfRangeException)
+					{
+						dye2 = DyeUtility.NoneDye;
+					}
 
 					await Dispatch.MainThread();
 

@@ -3,14 +3,13 @@
 
 namespace Anamnesis.Memory;
 
-using System;
-using System.Collections.Generic;
 using Anamnesis.Actor;
-using Anamnesis.Services;
 using Anamnesis.Styles;
 using Anamnesis.Utils;
 using FontAwesome.Sharp;
 using PropertyChanged;
+using System;
+using System.Collections.Generic;
 
 public class ActorBasicMemory : MemoryBase
 {
@@ -31,7 +30,7 @@ public class ActorBasicMemory : MemoryBase
 	[Bind(0x08c, BindFlags.ActorRefresh)] public ActorTypes ObjectKind { get; set; }
 	[Bind(0x090)] public byte DistanceFromPlayerX { get; set; }
 	[Bind(0x092)] public byte DistanceFromPlayerY { get; set; }
-	[Bind(0x0118)] public RenderModes RenderMode { get; set; }
+	[Bind(0x0108)] public RenderModes RenderMode { get; set; }
 
 	public string Id => $"n{this.NameHash}_d{this.DataId}_o{this.Address}";
 	public string IdNoAddress => $"n{this.NameHash}_d{this.DataId}"; ////_k{this.ObjectKind}";
@@ -45,7 +44,7 @@ public class ActorBasicMemory : MemoryBase
 	public string? Nickname { get; set; }
 
 	[DependsOn(nameof(ObjectIndex))]
-	public virtual bool IsGPoseActor => this.ObjectIndex >= 200 && this.ObjectIndex < 244;
+	public virtual bool IsGPoseActor => this.ObjectIndex >= 200 && this.ObjectIndex < 440;
 
 	[DependsOn(nameof(IsGPoseActor))]
 	public bool IsOverworldActor => !this.IsGPoseActor;

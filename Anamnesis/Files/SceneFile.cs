@@ -3,7 +3,8 @@
 
 namespace Anamnesis.Files;
 
-using Anamnesis.Actor;
+using Anamnesis.Core;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GUI.Dialogs;
 using Anamnesis.Memory;
 using System;
@@ -32,7 +33,7 @@ public class SceneFile : JsonFileBase
 	public override string TypeName => "Anamnesis Scene";
 
 	public uint Territory { get; set; }
-	public ushort Weather { get; set; }
+	public uint Weather { get; set; }
 	public byte DayOfMonth { get; set; }
 	public long TimeOfDay { get; set; }
 
@@ -89,17 +90,17 @@ public class SceneFile : JsonFileBase
 
 		TargetService.SetPlayerTarget(targetActor);
 
-		if (mode.HasFlag(Mode.Weather))
+		if (mode.HasFlagUnsafe(Mode.Weather))
 			TerritoryService.Instance.CurrentWeatherId = this.Weather;
 
-		if (mode.HasFlag(Mode.Time))
+		if (mode.HasFlagUnsafe(Mode.Time))
 		{
 			TimeService.Instance.Freeze = true;
 			TimeService.Instance.DayOfMonth = this.DayOfMonth;
 			TimeService.Instance.TimeOfDay = this.TimeOfDay;
 		}
 
-		if (mode.HasFlag(Mode.WorldPosition))
+		if (mode.HasFlagUnsafe(Mode.WorldPosition))
 		{
 			if (TerritoryService.Instance.CurrentTerritoryId != this.Territory)
 				throw new Exception("Could not restore world positions as you are not in the correct territory");
@@ -113,13 +114,12 @@ public class SceneFile : JsonFileBase
 		rootActor.ModelObject!.Transform!.Rotation = rootRotation;
 
 		// Adjust for waist
-		SkeletonVisual3d rootSkeleton = new();
-		await rootSkeleton.SetActor(rootActor);
+		var rootSkeleton = new Skeleton(rootActor);
 		Vector3 rootOriginalWaist = rootActorEntry.Pose?.Bones?["n_hara"]?.Position ?? Vector3.Zero;
 		Vector3 rootCurrentWaist = rootSkeleton.GetBone("n_hara")?.Position ?? Vector3.Zero;
 		Vector3 rootAdjustedWaist = Vector3.Transform(rootCurrentWaist - rootOriginalWaist, rootRotation);
 
-		if (mode.HasFlag(Mode.WorldPosition))
+		if (mode.HasFlagUnsafe(Mode.WorldPosition))
 		{
 			rootActor!.ModelObject!.Transform!.Position -= rootAdjustedWaist;
 		}
@@ -129,12 +129,10 @@ public class SceneFile : JsonFileBase
 			if (actor == null)
 				continue;
 
-			SkeletonVisual3d skeleton = new();
-			await skeleton.SetActor(actor);
-
+			var skeleton = new Skeleton(actor);
 			ActorEntry entry = this.ActorEntries[name];
 
-			if (actor != rootActor && mode.HasFlag(Mode.RelativePosition))
+			if (actor != rootActor && mode.HasFlagUnsafe(Mode.RelativePosition))
 			{
 				Quaternion rotatedRotation = rootRotation * entry.Rotation;
 
@@ -146,26 +144,26 @@ public class SceneFile : JsonFileBase
 				actor.ModelObject!.Transform!.Position = rootPosition + rotatedRelativePosition - adjustedWaist;
 				actor.ModelObject!.Transform!.Rotation = rotatedRotation;
 
-				if (!mode.HasFlag(Mode.WorldPosition))
+				if (!mode.HasFlagUnsafe(Mode.WorldPosition))
 				{
 					actor.ModelObject!.Transform!.Position += rootAdjustedWaist;
 				}
 			}
 
-			if (mode.HasFlag(Mode.Pose))
+			if (mode.HasFlagUnsafe(Mode.Pose))
 			{
 				// TODO: This should follow the same approach as the pose page imports
 				entry.Pose!.Apply(actor, skeleton, null, PoseFile.Mode.Rotation, true);
 			}
 		}
 
-		if (mode.HasFlag(Mode.Camera))
+		if (mode.HasFlagUnsafe(Mode.Camera))
 		{
 			this.CameraShot!.Apply(CameraService.Instance, targetActor);
 		}
 	}
 
-	public async Task WriteToFile()
+	public void WriteToFile()
 	{
 		this.Territory = TerritoryService.Instance.CurrentTerritoryId;
 		this.Weather = TerritoryService.Instance.CurrentWeatherId;
@@ -213,8 +211,7 @@ public class SceneFile : JsonFileBase
 			characterFile.WriteToFile(actor, CharacterFile.SaveModes.All);
 
 			PoseFile poseFile = new();
-			SkeletonVisual3d skeleton = new();
-			await skeleton.SetActor(actor);
+			var skeleton = new Skeleton(actor);
 			poseFile.WriteToFile(actor, skeleton, null);
 
 			ActorEntry entry = new();
@@ -243,7 +240,7 @@ public class SceneFile : JsonFileBase
 
 	private static ActorMemory? GetPinnedActor(string name)
 	{
-		foreach (PinnedActor pinnedActor in TargetService.Instance.PinnedActors)
+		foreach (PinnedActor pinnedActor in TargetService.Instance.PinnedActors.ToList())
 		{
 			ActorMemory? actorMemory = pinnedActor.GetMemory();
 

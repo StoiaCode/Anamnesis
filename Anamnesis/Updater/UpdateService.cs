@@ -3,6 +3,8 @@
 
 namespace Anamnesis.Updater;
 
+using Anamnesis.GUI.Dialogs;
+using Anamnesis.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,8 +15,6 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Anamnesis.GUI.Dialogs;
-using Anamnesis.Services;
 using XivToolsWpf;
 
 public class UpdateService : ServiceBase<UpdateService>

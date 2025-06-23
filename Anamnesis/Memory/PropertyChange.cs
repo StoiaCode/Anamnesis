@@ -3,8 +3,10 @@
 
 namespace Anamnesis.Memory;
 
+using Anamnesis.Core.Extensions;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 /// <summary>
 /// Represents a change in a property, including its old and new values, the
@@ -51,7 +53,7 @@ public struct PropertyChange
 	/// <param name="origin">The origin of the property change.</param>
 	public PropertyChange(BindInfo bind, object? oldValue, object? newValue, Origins origin)
 	{
-		this.BindPath = new() { bind };
+		this.BindPath = new List<BindInfo>(1) { bind };
 		this.path = bind.Path;
 		this.OldValue = oldValue;
 		this.NewValue = newValue;
@@ -65,7 +67,7 @@ public struct PropertyChange
 	/// <param name="other">The other instance to copy.</param>
 	public PropertyChange(PropertyChange other)
 	{
-		this.BindPath = new();
+		this.BindPath = new List<BindInfo>(other.BindPath.Count);
 		this.BindPath.AddRange(other.BindPath);
 		this.OldValue = other.OldValue;
 		this.NewValue = other.NewValue;
@@ -95,6 +97,7 @@ public struct PropertyChange
 	/// Determines whether the property change should be recorded.
 	/// </summary>
 	/// <returns>True if the change should be recorded; otherwise, false.</returns>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public readonly bool ShouldRecord()
 	{
 		// Don't record changes that originate anywhere other than the user interface.
@@ -103,7 +106,7 @@ public struct PropertyChange
 
 		foreach (BindInfo bind in this.BindPath)
 		{
-			if (bind.Flags.HasFlag(BindFlags.DontRecordHistory))
+			if (bind.Flags.HasFlagUnsafe(BindFlags.DontRecordHistory))
 				return false;
 		}
 
@@ -114,10 +117,11 @@ public struct PropertyChange
 	/// Adds a bind to the property change, appended to the end of the bind path.
 	/// </summary>
 	/// <param name="bind">The bind information to add.</param>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void AddPath(BindInfo bind)
 	{
 		this.BindPath.Add(bind);
-		this.path += bind.Path;
+		this.path = bind.Path + this.path;
 	}
 
 	/// <summary>
@@ -126,6 +130,7 @@ public struct PropertyChange
 	/// <remarks>
 	/// Use this method only if the change's bind path is not already configured.
 	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void ConfigureBindPath()
 	{
 		var parentBind = this.BindPath[0].Memory.ParentBind;

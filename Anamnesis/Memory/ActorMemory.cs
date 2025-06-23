@@ -4,6 +4,7 @@
 namespace Anamnesis.Memory;
 
 using Anamnesis.Actor;
+using Anamnesis.Core.Extensions;
 using Anamnesis.Services;
 using Anamnesis.Utils;
 using PropertyChanged;
@@ -30,6 +31,8 @@ public class ActorMemory : ActorBasicMemory
 		this.refreshDebounceTimer.Elapsed += async (s, e) => { await this.Refresh(); };
 	}
 
+	public event EventHandler? Refreshed;
+
 	public enum CharacterModes : byte
 	{
 		None = 0,
@@ -52,29 +55,29 @@ public class ActorMemory : ActorBasicMemory
 	}
 
 	[Bind(0x008D)] public byte SubKind { get; set; }
-	[Bind(0x00C4)] public float Scale { get; set; }
-	[Bind(0x0100, BindFlags.Pointer)] public ActorModelMemory? ModelObject { get; set; }
-	[Bind(0x01CA)] public byte ClassJob { get; set; }
-	[Bind(0x0670, BindFlags.Pointer)] public ActorMemory? Mount { get; set; }
-	[Bind(0x0678)] public ushort MountId { get; set; }
-	[Bind(0x06D8, BindFlags.Pointer)] public ActorMemory? Companion { get; set; }
-	[Bind(0x06F8)] public WeaponMemory? MainHand { get; set; }
-	[Bind(0x0768)] public WeaponMemory? OffHand { get; set; }
-	[Bind(0x0848)] public ActorEquipmentMemory? Equipment { get; set; }
-	[Bind(0x0898)] public ActorCustomizeMemory? Customize { get; set; }
-	[Bind(0x08B6, BindFlags.ActorRefresh)] public bool HatHidden { get; set; }
-	[Bind(0x08B7, BindFlags.ActorRefresh)] public CharacterFlagDefs CharacterFlags { get; set; }
-	[Bind(0x08B8)] public GlassesMemory? Glasses { get; set; }
-	[Bind(0x08F0, BindFlags.Pointer)] public ActorMemory? Ornament { get; set; }
-	[Bind(0x08F8)] public ushort OrnamentId { get; set; }
-	[Bind(0x09C0)] public AnimationMemory? Animation { get; set; }
-	[Bind(0x1AB8, BindFlags.ActorRefresh)] public int ModelType { get; set; }
-	[Bind(0x1AC4)] public bool IsMotionDisabled { get; set; }
-	[Bind(0x19D8)] public byte Voice { get; set; }
-	[Bind(0x226C)] public float Transparency { get; set; }
-	[Bind(0x22DC)] public byte CharacterModeRaw { get; set; }
-	[Bind(0x22DD)] public byte CharacterModeInput { get; set; }
-	[Bind(0x22FA)] public byte AttachmentPoint { get; set; }
+	[Bind(0x00B4)] public float Scale { get; set; }
+	[Bind(0x00F0, BindFlags.Pointer)] public ActorModelMemory? ModelObject { get; set; }
+	[Bind(0x01BA)] public byte ClassJob { get; set; }
+	[Bind(0x0660, BindFlags.Pointer)] public ActorMemory? Mount { get; set; }
+	[Bind(0x0668)] public ushort MountId { get; set; }
+	[Bind(0x06C8, BindFlags.Pointer)] public ActorMemory? Companion { get; set; }
+	[Bind(0x06E8)] public WeaponMemory? MainHand { get; set; }
+	[Bind(0x0758)] public WeaponMemory? OffHand { get; set; }
+	[Bind(0x0838)] public ActorEquipmentMemory? Equipment { get; set; }
+	[Bind(0x0888)] public ActorCustomizeMemory? Customize { get; set; }
+	[Bind(0x08A6, BindFlags.ActorRefresh)] public bool HatHidden { get; set; }
+	[Bind(0x08A7, BindFlags.ActorRefresh)] public CharacterFlagDefs CharacterFlags { get; set; }
+	[Bind(0x08A8)] public GlassesMemory? Glasses { get; set; }
+	[Bind(0x08E0, BindFlags.Pointer)] public ActorMemory? Ornament { get; set; }
+	[Bind(0x08E8)] public ushort OrnamentId { get; set; }
+	[Bind(0x09B0)] public AnimationMemory? Animation { get; set; }
+	[Bind(0x19C8)] public byte Voice { get; set; }
+	[Bind(0x1AA8, BindFlags.ActorRefresh)] public int ModelType { get; set; }
+	[Bind(0x1B14)] public bool IsMotionDisabled { get; set; }
+	[Bind(0x2258)] public float Transparency { get; set; }
+	[Bind(0x22CC)] public byte CharacterModeRaw { get; set; }
+	[Bind(0x22CD)] public byte CharacterModeInput { get; set; }
+	[Bind(0x22EA)] public byte AttachmentPoint { get; set; }
 
 	public PinnedActor? Pinned { get; set; }
 
@@ -122,7 +125,7 @@ public class ActorMemory : ActorBasicMemory
 	[DependsOn(nameof(CharacterFlags))]
 	public bool VisorToggled
 	{
-		get => this.CharacterFlags.HasFlag(CharacterFlagDefs.VisorToggled);
+		get => this.CharacterFlags.HasFlagUnsafe(CharacterFlagDefs.VisorToggled);
 		set
 		{
 			if (value)
@@ -144,7 +147,7 @@ public class ActorMemory : ActorBasicMemory
 	}
 
 	[DependsOn(nameof(ObjectIndex), nameof(CharacterMode))]
-	public bool CanAnimate => (this.CharacterMode == CharacterModes.Normal || this.CharacterMode == CharacterModes.AnimLock) || !ActorService.Instance.IsLocalOverworldPlayer(this.ObjectIndex);
+	public bool CanAnimate => this.CharacterMode == CharacterModes.Normal || this.CharacterMode == CharacterModes.AnimLock || !ActorService.IsLocalOverworldPlayer(this.ObjectIndex);
 
 	[DependsOn(nameof(CharacterMode))]
 	public bool IsAnimationOverridden => this.CharacterMode == CharacterModes.AnimLock;
@@ -200,6 +203,7 @@ public class ActorMemory : ActorBasicMemory
 		}
 
 		this.OnPropertyChanged(nameof(this.IsHuman));
+		this.OnRefreshed();
 	}
 
 	public async Task BackupAsync()
@@ -215,6 +219,11 @@ public class ActorMemory : ActorBasicMemory
 		this.OnPropertyChanged(nameof(this.CanRefresh));
 	}
 
+	protected virtual void OnRefreshed()
+	{
+		this.Refreshed?.Invoke(this, EventArgs.Empty);
+	}
+
 	private void HandlePropertyChanged(object? sender, PropertyChangedEventArgs e)
 	{
 		if (e is not MemObjPropertyChangedEventArgs memObjEventArgs)
@@ -227,16 +236,16 @@ public class ActorMemory : ActorBasicMemory
 			return;
 
 		// Only record changes that originate from the user
-		if (!change.OriginBind.Flags.HasFlag(BindFlags.DontRecordHistory))
+		if (!change.OriginBind.Flags.HasFlagUnsafe(BindFlags.DontRecordHistory) && !HistoryService.Instance.IsRestoring)
 		{
 			if (change.Origin == PropertyChange.Origins.User)
 			{
 				// Big hack to keep bone change history names short.
 				if (change.OriginBind.Memory.ParentBind?.Type == typeof(TransformMemory))
 				{
-					change.Name = (PoseService.SelectedBoneName == null) ?
-						LocalizationService.GetStringFormatted("History_ChangeBone", "??") :
-						LocalizationService.GetStringFormatted("History_ChangeBone", PoseService.SelectedBoneName);
+					change.Name = (PoseService.SelectedBonesText == null) ?
+						LocalizationService.GetStringFormatted("History_ChangeBone", LocalizationService.GetString("Pose_OtherUnknown")) :
+						LocalizationService.GetStringFormatted("History_ChangeBone", PoseService.SelectedBonesText);
 				}
 
 				this.History.Record(change);
@@ -247,9 +256,13 @@ public class ActorMemory : ActorBasicMemory
 		this.backupQueue.Invoke();
 
 		// Refresh the actor
-		if (this.AutomaticRefreshEnabled && change.OriginBind.Flags.HasFlag(BindFlags.ActorRefresh))
+		if (this.AutomaticRefreshEnabled && change.OriginBind.Flags.HasFlagUnsafe(BindFlags.ActorRefresh))
 		{
-			if (change.OriginBind.Flags.HasFlag(BindFlags.WeaponRefresh))
+			// Don't refresh because of a refresh
+			if (this.IsRefreshing && (change.OriginBind.Name == nameof(this.ObjectKind) || change.OriginBind.Name == nameof(this.RenderMode)))
+				return;
+
+			if (change.OriginBind.Flags.HasFlagUnsafe(BindFlags.WeaponRefresh))
 				this.IsWeaponDirty = true;
 
 			// Restart the debounce timer if it's already running, otherwise start it

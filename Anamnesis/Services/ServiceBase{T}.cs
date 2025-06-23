@@ -3,11 +3,15 @@
 
 namespace Anamnesis;
 
-using System;
-using System.ComponentModel;
-using System.Threading.Tasks;
+using Anamnesis.Memory.Exceptions;
 using PropertyChanged;
 using Serilog;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 
 [AddINotifyPropertyChangedInterface]
 public abstract class ServiceBase<T> : IService, INotifyPropertyChanged
@@ -21,8 +25,10 @@ public abstract class ServiceBase<T> : IService, INotifyPropertyChanged
 	{
 		get
 		{
+			Debug.Assert(instance != null, $"Service {typeof(T)} was accessed before it was initialized.");
+
 			if (instance == null)
-				throw new Exception($"No service found: {typeof(T)}");
+				throw new ServiceNotFoundException(typeof(T));
 
 			return instance;
 		}
@@ -54,6 +60,34 @@ public abstract class ServiceBase<T> : IService, INotifyPropertyChanged
 	public virtual Task Start()
 	{
 		return Task.CompletedTask;
+	}
+
+	/// <summary>
+	/// Checks if the specified services are alive within a given number of attempts.
+	/// </summary>
+	/// <param name="services">The services to check.</param>
+	/// <param name="maxAttempts">The maximum number of attempts.</param>
+	/// <param name="delay">The delay between attempts in milliseconds.</param>
+	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+	/// <exception cref="TimeoutException">Thrown if the services are not alive within the expected time.</exception>
+	protected static async Task EnsureServicesAreAlive(IEnumerable<IService> services, int maxAttempts, int delay)
+	{
+		int attempts = 0;
+		while (attempts < maxAttempts)
+		{
+			var notAliveServices = services.Where(service => !service.IsAlive).ToList();
+			if (!notAliveServices.Any())
+				return;
+
+			await Task.Delay(delay);
+			attempts++;
+		}
+
+		var serviceNames = services.Where(service => !service.IsAlive)
+			.Select(service => service.GetType().Name)
+			.ToList();
+
+		throw new TimeoutException($"The following services failed to start within the expected time: {string.Join(", ", serviceNames)}");
 	}
 
 	protected void RaisePropertyChanged(string property)

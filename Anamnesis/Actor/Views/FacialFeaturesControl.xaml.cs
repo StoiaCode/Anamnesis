@@ -3,14 +3,15 @@
 
 namespace Anamnesis.Actor.Views;
 
-using System;
-using System.Collections.Generic;
-using System.Windows.Controls;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData.Excel;
 using Anamnesis.GameData.Sheets;
 using Anamnesis.Memory;
 using Anamnesis.Services;
 using PropertyChanged;
+using System;
+using System.Collections.Generic;
+using System.Windows.Controls;
 using XivToolsWpf.DependencyProperties;
 
 /// <summary>
@@ -22,7 +23,7 @@ public partial class FacialFeaturesControl : UserControl
 	public static readonly IBind<ActorCustomizeMemory.FacialFeature> ValueDp = Binder.Register<ActorCustomizeMemory.FacialFeature, FacialFeaturesControl>(nameof(Value), OnValueChanged);
 	public static readonly IBind<ActorCustomizeMemory.Genders> GenderDp = Binder.Register<ActorCustomizeMemory.Genders, FacialFeaturesControl>(nameof(Gender), OnGenderChanged);
 	public static readonly IBind<ActorCustomizeMemory.Tribes> TribeDp = Binder.Register<ActorCustomizeMemory.Tribes, FacialFeaturesControl>(nameof(Tribe), OnTribeChanged);
-	public static readonly IBind<byte> HeadDp = Binder.Register<byte, FacialFeaturesControl>(nameof(Head), OnHeadChanged);
+	public static readonly IBind<byte> FaceDp = Binder.Register<byte, FacialFeaturesControl>(nameof(Face), OnHeadChanged);
 
 	private readonly List<Option> features = new List<Option>();
 	private bool locked = false;
@@ -45,10 +46,10 @@ public partial class FacialFeaturesControl : UserControl
 		set => TribeDp.Set(this, value);
 	}
 
-	public byte Head
+	public byte Face
 	{
-		get => HeadDp.Get(this);
-		set => HeadDp.Set(this, value);
+		get => FaceDp.Get(this);
+		set => FaceDp.Set(this, value);
 	}
 
 	public ActorCustomizeMemory.FacialFeature Value
@@ -80,7 +81,7 @@ public partial class FacialFeaturesControl : UserControl
 		sender.locked = true;
 		foreach (Option op in sender.features)
 		{
-			op.Selected = sender.Value.HasFlag(op.Value);
+			op.Selected = sender.Value.HasFlagUnsafe(op.Value);
 
 			if (op.Selected)
 			{
@@ -99,12 +100,12 @@ public partial class FacialFeaturesControl : UserControl
 		if (this.Tribe == 0)
 			return;
 
-		ImageReference[]? facialFeatures = null;
+		ImgRef[]? facialFeatures = null;
 		if (GameDataService.CharacterMakeTypes != null)
 		{
 			foreach (CharaMakeType set in GameDataService.CharacterMakeTypes)
 			{
-				if (set.Tribe != this.Tribe)
+				if (set.CustomizeTribe != this.Tribe)
 					continue;
 
 				if (set.Gender != this.Gender)
@@ -113,7 +114,7 @@ public partial class FacialFeaturesControl : UserControl
 				if (set.FacialFeatures == null)
 					throw new Exception("Missing facial features");
 
-				facialFeatures = set.FacialFeatures.ToArray();
+				facialFeatures = [.. set.FacialFeatures];
 				break;
 			}
 		}
@@ -123,17 +124,21 @@ public partial class FacialFeaturesControl : UserControl
 
 		this.features.Clear();
 
-		// Add an offset for Fem Hrothgar to show the facial features icons properly.
-		// Fem Hrothgar is defined as being either Helions or TheLost tribe AND Feminine gender.
-		int hrothFOffset = 0;
-		if((this.Tribe == ActorCustomizeMemory.Tribes.Helions || this.Tribe == ActorCustomizeMemory.Tribes.TheLost) && this.Gender == ActorCustomizeMemory.Genders.Feminine)
+		// TODO: Handle hrothgar <-> other races offsets correctly.
+
+		// Add an offset Fem Hrothgar to show the facial features icons properly.
+		// Fem Hrothgar use faces 5-8, always offset.
+		// Masc Hrothgar use faces 1-4 and 5-8, offset only if we're between 5 and 8.
+		int hrothOffset = 0;
+		bool isHroth = this.Tribe == ActorCustomizeMemory.Tribes.Helions || this.Tribe == ActorCustomizeMemory.Tribes.TheLost;
+		if (isHroth && (this.Gender == ActorCustomizeMemory.Genders.Feminine || (this.Face >= 5 && this.Face <= 8)))
 		{
-			hrothFOffset = 4;
+			hrothOffset = 4;
 		}
 
 		for (byte i = 0; i < 7; i++)
 		{
-			int id = (this.Head - (1 + hrothFOffset)) + (8 * i);
+			int id = ((this.Face - (1 + hrothOffset)) * 7) + i;
 
 			if (id < 0 || id >= facialFeatures.Length)
 				continue;
@@ -190,7 +195,7 @@ public partial class FacialFeaturesControl : UserControl
 	private class Option
 	{
 		public ActorCustomizeMemory.FacialFeature Value { get; set; }
-		public ImageReference? Icon { get; set; }
+		public ImgRef? Icon { get; set; }
 		public int Index { get; set; }
 		public bool Selected { get; set; }
 	}

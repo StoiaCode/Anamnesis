@@ -4,6 +4,7 @@
 namespace Anamnesis.Actor.Refresh;
 
 using Anamnesis.Brio;
+using Anamnesis.Core;
 using Anamnesis.Files;
 using Anamnesis.Memory;
 using Anamnesis.Services;
@@ -18,56 +19,71 @@ public class BrioActorRefresher : IActorRefresher
 		if (!SettingsService.Current.UseExternalRefreshBrio)
 			return false;
 
+		// Brio doesn't support refresh on world-frozen actors.
+		// Trying to refresh a world-frozen actor will cause the actor to be
+		// sent to world origin (0, 0, 0).
+		if (PoseService.Instance.FreezeWorldPosition)
+			return false;
+
 		return true;
 	}
 
 	public async Task RefreshActor(ActorMemory actor)
 	{
 		await Dispatch.MainThread();
-		bool isPosing = PoseService.Instance.IsEnabled;
 
-		RedrawType redrawType = RedrawType.AllowFull | RedrawType.PreservePosition | RedrawType.AllowOptimized | RedrawType.ForceAllowNPCAppearance;
+		bool doNpcHack = SettingsService.Current.EnableNpcHack && actor.ObjectKind == ActorTypes.Player;
 
-		if (actor.IsWeaponDirty)
-		{
-			redrawType |= RedrawType.ForceRedrawWeaponsOnOptimized;
-		}
-
-		if (actor.IsOverworldActor || (actor.IsWeaponDirty && isPosing))
-		{
-			redrawType &= ~RedrawType.AllowOptimized;
-		}
-
-		if (isPosing)
+		if (PoseService.Instance.IsEnabled)
 		{
 			// Save the current pose
-			PoseFile poseFile = new PoseFile();
-			SkeletonVisual3d skeletonVisual3D = new SkeletonVisual3d();
-			await skeletonVisual3D.SetActor(actor);
-			poseFile.WriteToFile(actor, skeletonVisual3D, null);
+			var poseFile = new PoseFile();
+			var skeleton = new Skeleton(actor);
+			poseFile.WriteToFile(actor, skeleton, null);
 
 			// Redraw
-			var result = await Brio.Redraw(actor.ObjectIndex, redrawType);
-			if (result == "\"Full\"")
-			{
-				// TODO: It's probably best to find some way to detect when it's safe
-				// this is a good first attempt though.
-				new Task(async () =>
-				{
-					await Task.Delay(500);
-					await Dispatch.MainThread();
+			if (doNpcHack)
+				actor.ObjectKind = ActorTypes.BattleNpc;
 
-					// Restore current pose
-					skeletonVisual3D = new SkeletonVisual3d();
-					await skeletonVisual3D.SetActor(actor);
-					poseFile.Apply(actor, skeletonVisual3D, null, PoseFile.Mode.All, true);
-				}).Start();
+			try
+			{
+				var result = await Brio.Redraw(actor.ObjectIndex);
+
+				if (result == "\"Full\"")
+				{
+					new Task(async () =>
+					{
+						await Task.Delay(500);
+						await Dispatch.MainThread();
+
+						// Restore current pose
+						skeleton = new Skeleton(actor);
+						poseFile.Apply(actor, skeleton, null, PoseFile.Mode.All, true);
+					}).Start();
+				}
+			}
+			finally
+			{
+				if (doNpcHack)
+					actor.ObjectKind = ActorTypes.Player;
 			}
 		}
 		else
 		{
+
 			// Outside of pose mode we can just refresh
-			await Brio.Redraw(actor.ObjectIndex, redrawType);
+			if (doNpcHack)
+				actor.ObjectKind = ActorTypes.BattleNpc;
+
+			try
+			{
+				await Brio.Redraw(actor.ObjectIndex);
+			}
+			finally
+			{
+				if (doNpcHack)
+					actor.ObjectKind = ActorTypes.Player;
+			}
 		}
 	}
 }

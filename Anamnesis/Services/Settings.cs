@@ -3,6 +3,9 @@
 
 namespace Anamnesis.Services;
 
+using Anamnesis.Keyboard;
+using Anamnesis.Styles.Controls;
+using PropertyChanged;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,19 +13,27 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using Anamnesis.Keyboard;
-using PropertyChanged;
 
 [Serializable]
 [AddINotifyPropertyChangedInterface]
 public class Settings : INotifyPropertyChanged
 {
+	private const int MinAutoSaveIntervalMinutes = 1;
+	private int autoSaveIntervalMinutes = 5;
+	private bool enableAutoSave = true;
+
 	public event PropertyChangedEventHandler? PropertyChanged;
 
 	public enum Fonts
 	{
 		Default,
 		Hyperlegible,
+	}
+
+	public enum GizmoDragModes
+	{
+		Linear,
+		Circular,
 	}
 
 	public string Language { get; set; } = "EN";
@@ -38,6 +49,7 @@ public class Settings : INotifyPropertyChanged
 	public string DefaultCharacterDirectory { get; set; } = "%MyDocuments%/Anamnesis/Characters/";
 	public string DefaultCameraShotDirectory { get; set; } = "%MyDocuments%/Anamnesis/CameraShots/";
 	public string DefaultSceneDirectory { get; set; } = "%MyDocuments%/Anamnesis/Scenes/";
+	public string DefaultAutoSaveDirectory { get; set; } = "%MyDocuments%/Anamnesis/AutoSave/";
 	public bool ShowAdvancedOptions { get; set; } = true;
 	public bool FlipPoseGuiSides { get; set; } = false;
 	public Fonts Font { get; set; } = Fonts.Default;
@@ -63,8 +75,69 @@ public class Settings : INotifyPropertyChanged
 	public Binds KeyboardBindings { get; set; } = new();
 	public Dictionary<string, int> ActorTabOrder { get; set; } = new();
 	public Dictionary<string, bool> PosingBoneLinks { get; set; } = new();
+	public double ViewportPanSpeed { get; set; } = 1;
+	public double ViewportZoomSpeed { get; set; } = 1;
+	public double ViewportRotationSpeed { get; set; } = 1;
+	public bool EnableAutoSave
+	{
+		get
+		{
+			return this.enableAutoSave;
+		}
+		set
+		{
+			if (value == this.enableAutoSave)
+				return;
 
-	public double WindowOpcaticy
+			this.enableAutoSave = value;
+
+			if (AutoSaveService.Exists)
+			{
+				AutoSaveService.Instance?.RestartUpdateTask();
+			}
+		}
+	}
+
+	public int AutoSaveFileCount { get; set; } = 12;
+	public int AutoSaveIntervalMinutes
+	{
+		get
+		{
+			return Math.Max(this.autoSaveIntervalMinutes, MinAutoSaveIntervalMinutes);
+		}
+		set
+		{
+			if (value == this.autoSaveIntervalMinutes)
+				return;
+
+			// Limit the minimum value
+			if (value < MinAutoSaveIntervalMinutes)
+				value = MinAutoSaveIntervalMinutes;
+
+			this.autoSaveIntervalMinutes = value;
+
+			if (AutoSaveService.Exists)
+			{
+				AutoSaveService.Instance?.RestartUpdateTask();
+			}
+		}
+	}
+	public bool AutoSaveOnlyInGpose { get; set; } = true;
+
+	public GizmoDragModes GizmoDragMode { get; set; } = GizmoDragModes.Linear;
+
+	public double SliderSensitivity { get; set; } = 1;
+	public double SliderPrecision { get; set; } = 3;
+	public bool SliderKeepInputOpenOnCommit { get; set; } = false;
+
+	public SliderInputBox.SliderTypes TimeAndWeatherSliderType { get; set; } = SliderInputBox.SliderTypes.Classic;
+	public SliderInputBox.SliderTypes CameraSliderType { get; set; } = SliderInputBox.SliderTypes.Modern;
+	public SliderInputBox.SliderTypes BoneRotationSliderType { get; set; } = SliderInputBox.SliderTypes.Modern;
+	public SliderInputBox.SliderTypes BonePositionSliderType { get; set; } = SliderInputBox.SliderTypes.Modern;
+	public SliderInputBox.SliderTypes BoneScaleSliderType { get; set; } = SliderInputBox.SliderTypes.Modern;
+	public bool ShowSliderThumb { get; set; } = false;
+
+	public double WindowOpacity
 	{
 		get
 		{
@@ -111,10 +184,9 @@ public class Settings : INotifyPropertyChanged
 		public KeyCombination MainWindow_ActionTab { get; set; } = new(Key.D2);
 		public KeyCombination MainWindow_PoseTab { get; set; } = new(Key.D3);
 		public KeyCombination System_Undo { get; set; } = new(Key.Z, ModifierKeys.Control);
+		public KeyCombination System_Redo { get; set; } = new(Key.Y, ModifierKeys.Control);
 		public KeyCombination ActionPage_ResumeAll { get; set; } = new(Key.P, ModifierKeys.Control | ModifierKeys.Shift);
 		public KeyCombination ActionPage_PauseAll { get; set; } = new(Key.S, ModifierKeys.Control | ModifierKeys.Shift);
-
-		////public KeyCombinationSystem_Redo { get; set; } = new(Key.Y, ModifierKeys.Control);
 
 		public Dictionary<string, KeyCombination> GetBinds()
 		{

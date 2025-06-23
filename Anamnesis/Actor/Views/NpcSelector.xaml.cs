@@ -3,16 +3,17 @@
 
 namespace Anamnesis.Actor.Views;
 
-using System.ComponentModel;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
 using Anamnesis.GameData;
 using Anamnesis.GameData.Excel;
+using Anamnesis.GameData.Sheets;
 using Anamnesis.Services;
 using Anamnesis.Styles.Drawers;
 using Anamnesis.Utils;
 using PropertyChanged;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using System.Windows;
 using XivToolsWpf;
 
 public abstract class NpcSelectorDrawer : SelectorDrawer<INpcBase>
@@ -57,22 +58,22 @@ public partial class NpcSelector : NpcSelectorDrawer
 	protected override Task LoadItems()
 	{
 		if (GameDataService.ResidentNPCs != null)
-			this.AddItems(GameDataService.ResidentNPCs);
+			this.AddItems(GameDataService.ResidentNPCs.ToEnumerable());
 
 		if (GameDataService.BattleNPCs != null)
-			this.AddItems(GameDataService.BattleNPCs);
+			this.AddItems(GameDataService.BattleNPCs.ToEnumerable());
 
 		if (GameDataService.EventNPCs != null)
-			this.AddItems(GameDataService.EventNPCs);
+			this.AddItems(GameDataService.EventNPCs.ToEnumerable());
 
 		if (GameDataService.Mounts != null)
-			this.AddItems(GameDataService.Mounts);
+			this.AddItems(GameDataService.Mounts.ToEnumerable());
 
 		if (GameDataService.Companions != null)
-			this.AddItems(GameDataService.Companions);
+			this.AddItems(GameDataService.Companions.ToEnumerable());
 
 		if (GameDataService.Ornaments != null)
-			this.AddItems(GameDataService.Ornaments);
+			this.AddItems(GameDataService.Ornaments.ToEnumerable());
 
 		return Task.CompletedTask;
 	}
@@ -86,48 +87,13 @@ public partial class NpcSelector : NpcSelectorDrawer
 		if (!itemA.IsFavorite && itemB.IsFavorite)
 			return 1;
 
-		// Then Residents
-		if (itemA is ResidentNpc && itemB is not ResidentNpc)
-			return -1;
+		int priorityA = GetNpcSortPriority(itemA);
+		int priorityB = GetNpcSortPriority(itemB);
 
-		if (itemA is not ResidentNpc && itemB is ResidentNpc)
-			return 1;
+		if (priorityA != priorityB)
+			return priorityA.CompareTo(priorityB);
 
-		// Then Mounts
-		if (itemA is Mount && itemB is not Mount)
-			return -1;
-
-		if (itemA is not Mount && itemB is Mount)
-			return 1;
-
-		// Then Minions
-		if (itemA is Companion && itemB is not Companion)
-			return -1;
-
-		if (itemA is not Companion && itemB is Companion)
-			return 1;
-
-		// Then Battle NPCs
-		if (itemA is BattleNpc && itemB is not BattleNpc)
-			return -1;
-
-		if (itemA is not BattleNpc && itemB is BattleNpc)
-			return 1;
-
-		// Then Event NPCs
-		if (itemA is EventNpcAppearance && itemB is not EventNpcAppearance)
-			return -1;
-
-		if (itemA is not EventNpcAppearance && itemB is EventNpcAppearance)
-			return 1;
-
-		// Then Ornaments
-		if (itemA is Ornament && itemB is not Ornament)
-			return -1;
-
-		if (itemA is not Ornament && itemB is Ornament)
-			return 1;
-
+		// Fallback to RowId comparison if priorities are equal
 		return -itemB.RowId.CompareTo(itemA.RowId);
 	}
 
@@ -227,6 +193,20 @@ public partial class NpcSelector : NpcSelectorDrawer
 			return;
 
 		await ClipboardUtility.CopyToClipboardAsync(this.Value.ToStringKey());
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static int GetNpcSortPriority(INpcBase npc)
+	{
+		return npc switch
+		{
+			ResidentNpc => 0,
+			Mount => 1,
+			Companion => 2,
+			BattleNpc => 3,
+			Ornament => 4,
+			_ => 5,
+		};
 	}
 
 	[AddINotifyPropertyChangedInterface]

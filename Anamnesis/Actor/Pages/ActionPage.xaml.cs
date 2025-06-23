@@ -28,7 +28,7 @@ public partial class ActionPage : UserControl
 
 		this.ContentArea.DataContext = this;
 
-		this.LipSyncTypes = this.GenerateLipList();
+		this.LipSyncTypes = GenerateLipList();
 
 		HotkeyService.RegisterHotkeyHandler("ActionPage.ResumeAll", () => this.OnResumeAll());
 		HotkeyService.RegisterHotkeyHandler("ActionPage.PauseAll", () => this.OnPauseAll());
@@ -82,7 +82,7 @@ public partial class ActionPage : UserControl
 		}
 	}
 
-	private IEnumerable<ActionTimeline> GenerateLipList()
+	private static IEnumerable<ActionTimeline> GenerateLipList()
 	{
 		// Grab "no animation" and all "speak/" animations, which are the only ones valid in this slot
 		IEnumerable<ActionTimeline> lips = GameDataService.ActionTimelines.Where(x => x.AnimationId == 0 || (x.Key?.StartsWith("speak/") ?? false));
@@ -99,7 +99,7 @@ public partial class ActionPage : UserControl
 			if (animation == null || animation.Timeline == null)
 				return;
 
-			this.AnimationOverride.BaseAnimationId = animation.Timeline.AnimationId;
+			this.AnimationOverride.BaseAnimationId = animation.Timeline.Value.AnimationId;
 		});
 
 		animSelector.LocalAnimationSlotFilter = new()
@@ -120,7 +120,7 @@ public partial class ActionPage : UserControl
 			if (animation == null || animation.Timeline == null)
 				return;
 
-			this.AnimationOverride.BlendAnimationId = animation.Timeline.AnimationId;
+			this.AnimationOverride.BlendAnimationId = animation.Timeline.Value.AnimationId;
 		});
 
 		animSelector.LocalAnimationSlotFilter = new()
@@ -153,6 +153,7 @@ public partial class ActionPage : UserControl
 			return;
 
 		await this.AnimationService.BlendAnimation(this.Actor, this.AnimationOverride.BlendAnimationId);
+		this.AnimationBlendButton.Focus(); // Refocus on the button as the blend lock changes state in the function call above
 	}
 
 	private void OnIdleOverrideAnimation(object sender, RoutedEventArgs e)
@@ -180,7 +181,7 @@ public partial class ActionPage : UserControl
 
 		AnimationService.Instance.SpeedControlEnabled = true;
 
-		foreach (var target in TargetService.Instance.PinnedActors)
+		foreach (var target in TargetService.Instance.PinnedActors.ToList())
 		{
 			if (target.IsValid && target.Memory != null && target.Memory.IsValid)
 			{
@@ -199,7 +200,7 @@ public partial class ActionPage : UserControl
 
 		AnimationService.Instance.SpeedControlEnabled = true;
 
-		foreach (var target in TargetService.Instance.PinnedActors)
+		foreach (var target in TargetService.Instance.PinnedActors.ToList())
 		{
 			if (target.IsValid && target.Memory != null && target.Memory.IsValid)
 			{

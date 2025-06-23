@@ -2,11 +2,13 @@
 // Licensed under the MIT license.
 
 namespace Anamnesis.Styles.Controls;
-using System.ComponentModel;
-using System.Windows.Controls;
+
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData;
 using Anamnesis.GameData.Sheets;
 using PropertyChanged;
+using System.ComponentModel;
+using System.Windows.Controls;
 using XivToolsWpf.DependencyProperties;
 
 /// <summary>
@@ -50,7 +52,7 @@ public partial class ClassFilterItem : UserControl, INotifyPropertyChanged
 	{
 		get
 		{
-			return this.Value.HasFlag(this.Class);
+			return this.Value.HasFlagUnsafe(this.Class);
 		}
 
 		set
@@ -59,7 +61,7 @@ public partial class ClassFilterItem : UserControl, INotifyPropertyChanged
 		}
 	}
 
-	public ImageReference? Image { get; set; }
+	public ImgRef? Image { get; set; }
 	////return "/Anamnesis;component/Assets/Classes/" + this.Class.ToString() + ".png";
 
 	private static void OnValueChanged(ClassFilterItem sender, Classes value)

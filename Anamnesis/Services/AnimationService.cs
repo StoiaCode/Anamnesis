@@ -20,7 +20,7 @@ public class AnimationService : ServiceBase<AnimationService>
 
 	private readonly HashSet<ActorMemory> overriddenActors = new();
 
-	private NopHookViewModel? animationSpeedHook;
+	private NopHook? animationSpeedHook;
 	private bool speedControlEnabled = false;
 
 	public bool SpeedControlEnabled
@@ -37,7 +37,7 @@ public class AnimationService : ServiceBase<AnimationService>
 	{
 		GposeService.GposeStateChanged += this.OnGposeStateChanged;
 
-		this.animationSpeedHook = new NopHookViewModel(AddressService.AnimationSpeedPatch, 0x9);
+		this.animationSpeedHook = new NopHook(AddressService.AnimationSpeedPatch, 0x9);
 
 		this.OnGposeStateChanged(GposeService.Instance.IsGpose);
 
@@ -120,7 +120,7 @@ public class AnimationService : ServiceBase<AnimationService>
 
 		if (this.SpeedControlEnabled)
 		{
-			var actors = TargetService.Instance.PinnedActors;
+			var actors = TargetService.Instance.PinnedActors.ToList();
 			foreach (var actor in actors)
 			{
 				if (actor.IsValid && actor.Memory != null && actor.Memory.Address != IntPtr.Zero && actor.Memory.IsValid)
@@ -146,7 +146,7 @@ public class AnimationService : ServiceBase<AnimationService>
 	{
 		if (animationId != null && memory.Animation!.BaseOverride != animationId)
 		{
-			if (animationId < GameDataService.ActionTimelines.RowCount)
+			if (animationId < GameDataService.ActionTimelines.Count)
 			{
 				memory.Animation!.BaseOverride = (ushort)animationId;
 			}

@@ -4,12 +4,12 @@
 namespace Anamnesis.Files;
 
 using Anamnesis.Actor.Utilities;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData;
 using Anamnesis.Memory;
 using Serilog;
 using System;
 using System.Numerics;
-using System.Threading.Tasks;
 using XivToolsWpf.Math3D.Extensions;
 
 [Serializable]
@@ -228,12 +228,7 @@ public class CharacterFile : JsonFileBase
 		}
 	}
 
-	public async Task Apply(ActorMemory actor, SaveModes mode, ItemSlots? slot = null)
-	{
-		await Task.Run(() => this.ApplyInternal(actor, mode, slot));
-	}
-
-	public void ApplyInternal(ActorMemory actor, SaveModes mode, ItemSlots? slot = null)
+	public void Apply(ActorMemory actor, SaveModes mode, ItemSlots? slot = null)
 	{
 		if (this.Tribe == 0)
 			this.Tribe = ActorCustomizeMemory.Tribes.Midlander;
@@ -269,26 +264,29 @@ public class CharacterFile : JsonFileBase
 			{
 				this.MainHand?.Write(actor.MainHand, true);
 				this.OffHand?.Write(actor.OffHand, false);
-				actor.IsWeaponDirty = true;
 			}
 
 			if (this.IncludeSection(SaveModes.EquipmentGear, mode))
 			{
-				this.HeadGear?.Write(actor.Equipment?.Head);
-				this.Body?.Write(actor.Equipment?.Chest);
-				this.Hands?.Write(actor.Equipment?.Arms);
-				this.Legs?.Write(actor.Equipment?.Legs);
-				this.Feet?.Write(actor.Equipment?.Feet);
-				this.Glasses?.Write(actor.Glasses);
+				WriteEquipment(this.HeadGear, actor.Equipment?.Head);
+				WriteEquipment(this.Body, actor.Equipment?.Chest);
+				WriteEquipment(this.Hands, actor.Equipment?.Arms);
+				WriteEquipment(this.Legs, actor.Equipment?.Legs);
+				WriteEquipment(this.Feet, actor.Equipment?.Feet);
+
+				if (this.Glasses != null)
+					this.Glasses.Write(actor.Glasses);
+				else if (actor.Glasses != null)
+					actor.Glasses.GlassesId = 0;
 			}
 
 			if (this.IncludeSection(SaveModes.EquipmentAccessories, mode))
 			{
-				this.Ears?.Write(actor.Equipment?.Ear);
-				this.Neck?.Write(actor.Equipment?.Neck);
-				this.Wrists?.Write(actor.Equipment?.Wrist);
-				this.RightRing?.Write(actor.Equipment?.RFinger);
-				this.LeftRing?.Write(actor.Equipment?.LFinger);
+				WriteEquipment(this.Ears, actor.Equipment?.Ear);
+				WriteEquipment(this.Neck, actor.Equipment?.Neck);
+				WriteEquipment(this.Wrists, actor.Equipment?.Wrist);
+				WriteEquipment(this.LeftRing, actor.Equipment?.LFinger);
+				WriteEquipment(this.RightRing, actor.Equipment?.RFinger);
 			}
 
 			if (mode == SaveModes.EquipmentSlot && slot != null)
@@ -297,11 +295,9 @@ public class CharacterFile : JsonFileBase
 				{
 					case ItemSlots.MainHand:
 						this.MainHand?.Write(actor.MainHand, true);
-						actor.IsWeaponDirty = true;
 						break;
 					case ItemSlots.OffHand:
 						this.OffHand?.Write(actor.OffHand, false);
-						actor.IsWeaponDirty = true;
 						break;
 					case ItemSlots.Head:
 						this.HeadGear?.Write(actor.Equipment?.Head);
@@ -478,7 +474,22 @@ public class CharacterFile : JsonFileBase
 
 	private bool IncludeSection(SaveModes section, SaveModes mode)
 	{
-		return this.SaveMode.HasFlag(section) && mode.HasFlag(section);
+		return this.SaveMode.HasFlagUnsafe(section) && mode.HasFlagUnsafe(section);
+	}
+
+	private static void WriteEquipment(ItemSave? itemSave, ItemMemory? itemMemory)
+	{
+		if (itemSave != null)
+		{
+			itemSave.Write(itemMemory);
+		}
+		else if (itemMemory != null)
+		{
+			itemMemory.Base = ItemUtility.NoneItem.ModelBase;
+			itemMemory.Variant = (byte)ItemUtility.NoneItem.ModelVariant;
+			itemMemory.Dye = (byte)ItemUtility.NoneDye.RowId;
+			itemMemory.Dye2 = (byte)ItemUtility.NoneDye.RowId;
+		}
 	}
 
 	[Serializable]
@@ -589,6 +600,14 @@ public class CharacterFile : JsonFileBase
 		public GlassesSave(ushort glassesId)
 		{
 			this.GlassesId = glassesId;
+		}
+
+		public GlassesSave(uint glassesId)
+		{
+			if (glassesId > ushort.MaxValue)
+				throw new ArgumentOutOfRangeException(nameof(glassesId), $"Glasses ID exceeds the maximum support value of {ushort.MaxValue}.");
+
+			this.GlassesId = (ushort)glassesId;
 		}
 
 		public ushort GlassesId { get; set; }

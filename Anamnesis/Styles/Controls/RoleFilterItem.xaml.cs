@@ -3,11 +3,12 @@
 
 namespace Anamnesis.Styles.Controls;
 
+using Anamnesis.Core.Extensions;
+using Anamnesis.GameData;
+using PropertyChanged;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using Anamnesis.GameData;
-using PropertyChanged;
 using XivToolsWpf.DependencyProperties;
 
 /// <summary>
@@ -40,13 +41,7 @@ public partial class RoleFilterItem : UserControl, INotifyPropertyChanged
 		set => RoleDp.Set(this, value);
 	}
 
-	public string RoleName
-	{
-		get
-		{
-			return this.Role.GetName();
-		}
-	}
+	public string RoleName => this.Role.ToString();
 
 	public bool IsSelected
 	{
@@ -54,7 +49,7 @@ public partial class RoleFilterItem : UserControl, INotifyPropertyChanged
 		{
 			foreach (Classes job in this.Role.GetClasses())
 			{
-				if (!this.Value.HasFlag(job))
+				if (!this.Value.HasFlagUnsafe(job))
 				{
 					return false;
 				}
@@ -64,13 +59,7 @@ public partial class RoleFilterItem : UserControl, INotifyPropertyChanged
 		}
 	}
 
-	public string ImageSource
-	{
-		get
-		{
-			return "/Anamnesis;component/Assets/Roles/" + this.Role.ToString() + ".png";
-		}
-	}
+	public string ImageSource => $"/Anamnesis;component/Assets/Roles/{this.Role}.png";
 
 	private static void OnValueChanged(RoleFilterItem sender, Classes value)
 	{

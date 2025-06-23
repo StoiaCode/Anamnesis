@@ -3,6 +3,10 @@
 
 namespace Anamnesis.Services;
 
+using Anamnesis;
+using Anamnesis.Files;
+using Anamnesis.GUI.Dialogs;
+using Anamnesis.Serialization;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -10,10 +14,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
-using Anamnesis;
-using Anamnesis.Files;
-using Anamnesis.GUI.Dialogs;
-using Anamnesis.Serialization;
 using XivToolsWpf;
 
 public class SettingsService : ServiceBase<SettingsService>
@@ -81,7 +81,7 @@ public class SettingsService : ServiceBase<SettingsService>
 			}
 			catch (Exception ex)
 			{
-				Log.Warning(ex, "Failed to load settings");
+				Log.Warning(ex, $"Failed to load settings:\n{ex.StackTrace}");
 				await GenericDialog.ShowAsync("Failed to load Settings. Your settings have been reset.", "Error", MessageBoxButton.OK);
 				this.FirstTimeUser = true;
 				this.Settings = new Settings();

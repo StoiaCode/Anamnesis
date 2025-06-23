@@ -3,17 +3,18 @@
 
 namespace Anamnesis.Actor.Views;
 
-using System;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
 using Anamnesis.Actor.Utilities;
+using Anamnesis.Core.Extensions;
 using Anamnesis.GameData;
 using Anamnesis.GameData.Excel;
+using Anamnesis.GameData.Sheets;
 using Anamnesis.Keyboard;
 using Anamnesis.Services;
 using Anamnesis.Styles.Drawers;
-using PropertyChanged;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using XivToolsWpf;
 
 public abstract class EquipmentSelectorDrawer : SelectorDrawer<IItem>
@@ -65,8 +66,8 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 	public ItemSlots Slot { get; set; }
 	public bool IsMainHandSlot => this.Slot == ItemSlots.MainHand;
 	public bool IsOffHandSlot => this.Slot == ItemSlots.OffHand;
-	public bool IsWeaponSlot => this.Slot == ItemSlots.MainHand || this.Slot == ItemSlots.OffHand;
-	public bool IsSmallclothesSlot => this.Slot > ItemSlots.Head && this.Slot <= ItemSlots.OffHand;
+	public bool IsWeaponSlot => (this.Slot & ItemSlots.Weapons) != 0;
+	public bool IsSmallclothesSlot => (this.Slot & (~ItemSlots.Head) & ItemSlots.Armor) != 0;
 
 	public SortModes SortMode
 	{
@@ -143,6 +144,8 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 
 	public override void OnClosed()
 	{
+		base.OnClosed();
+
 		HotkeyService.ClearHotkeyHandler("AppearancePage.ClearEquipment", this);
 	}
 
@@ -176,8 +179,8 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 			this.AddItem(ItemUtility.InvisibileHeadItem);
 
 			this.AddItems(GameDataService.Equipment);
-			this.AddItems(GameDataService.Items);
-			this.AddItems(GameDataService.Perform);
+			this.AddItems(GameDataService.Items.ToEnumerable());
+			this.AddItems(GameDataService.Perform.ToEnumerable());
 		}
 
 		return Task.CompletedTask;
@@ -186,35 +189,28 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 	protected override int Compare(IItem itemA, IItem itemB)
 	{
 		if (itemA.IsFavorite && !itemB.IsFavorite)
-		{
 			return -1;
-		}
-		else if (!itemA.IsFavorite && itemB.IsFavorite)
-		{
+
+		if (!itemA.IsFavorite && itemB.IsFavorite)
 			return 1;
-		}
 
 		// Push the Emperor's New Fists to the top of the list for weapons.
 		if (this.IsWeaponSlot)
 		{
 			if (itemA == ItemUtility.EmperorsNewFists && itemB != ItemUtility.EmperorsNewFists)
-			{
 				return -1;
-			}
-			else if (itemA != ItemUtility.EmperorsNewFists && itemB == ItemUtility.EmperorsNewFists)
-			{
+
+			if (itemA != ItemUtility.EmperorsNewFists && itemB == ItemUtility.EmperorsNewFists)
 				return 1;
-			}
 		}
 
-		switch (this.SortMode)
+		return this.SortMode switch
 		{
-			case SortModes.Name: return itemA.Name.CompareTo(itemB.Name);
-			case SortModes.Row: return itemA.RowId.CompareTo(itemB.RowId);
-			case SortModes.Level: return itemA.EquipLevel.CompareTo(itemB.EquipLevel);
-		}
-
-		throw new NotImplementedException($"Sort mode {this.SortMode} not implemented");
+			SortModes.Name => itemA.Name.CompareTo(itemB.Name),
+			SortModes.Row => itemA.RowId.CompareTo(itemB.RowId),
+			SortModes.Level => itemA.EquipLevel.CompareTo(itemB.EquipLevel),
+			_ => throw new NotImplementedException($"Sort mode {this.SortMode} not implemented"),
+		};
 	}
 
 	protected override bool Filter(IItem item, string[]? search)
@@ -251,12 +247,12 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 
 	private bool HasClass(Classes a, Classes b)
 	{
-		foreach (Classes? job in Enum.GetValues(typeof(Classes)))
+		foreach (Classes? job in Enum.GetValues<Classes>().Select(v => (Classes?)v))
 		{
 			if (job == null || job == Classes.None)
 				continue;
 
-			if (a.HasFlag(job) && b.HasFlag(job))
+			if (a.HasFlagUnsafe(job.Value) && b.HasFlagUnsafe(job.Value))
 			{
 				return true;
 			}
@@ -270,26 +266,26 @@ public partial class EquipmentSelector : EquipmentSelectorDrawer
 		ItemCategories itemCategory = item.Category;
 
 		// Include none category
-		bool categoryFiltered = this.CategoryFilter.HasFlag(ItemCategories.Standard) && itemCategory == ItemCategories.None;
+		bool categoryFiltered = this.CategoryFilter.HasFlagUnsafe(ItemCategories.Standard) && itemCategory == ItemCategories.None;
 
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Standard) && itemCategory.HasFlag(ItemCategories.Standard);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Premium) && itemCategory.HasFlag(ItemCategories.Premium);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Limited) && itemCategory.HasFlag(ItemCategories.Limited);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Deprecated) && itemCategory.HasFlag(ItemCategories.Deprecated);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.CustomEquipment) && itemCategory.HasFlag(ItemCategories.CustomEquipment);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Performance) && itemCategory.HasFlag(ItemCategories.Performance);
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Modded) && item.Mod != null;
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Favorites) && item.IsFavorite;
-		categoryFiltered |= this.CategoryFilter.HasFlag(ItemCategories.Owned) && item.IsOwned;
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Standard) && itemCategory.HasFlagUnsafe(ItemCategories.Standard);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Premium) && itemCategory.HasFlagUnsafe(ItemCategories.Premium);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Limited) && itemCategory.HasFlagUnsafe(ItemCategories.Limited);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Deprecated) && itemCategory.HasFlagUnsafe(ItemCategories.Deprecated);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.CustomEquipment) && itemCategory.HasFlagUnsafe(ItemCategories.CustomEquipment);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Performance) && itemCategory.HasFlagUnsafe(ItemCategories.Performance);
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Modded) && item.Mod != null;
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Favorites) && item.IsFavorite;
+		categoryFiltered |= this.CategoryFilter.HasFlagUnsafe(ItemCategories.Owned) && item.IsOwned;
 		return categoryFiltered;
 	}
 
 	private bool CanEquip(Item item)
 	{
-		if (item.EquipRestriction == null || this.actor == null || this.actor.Customize == null)
+		if (!item.EquipRestriction.IsValid || this.actor == null || this.actor.Customize == null)
 			return true;
 
-		return item.EquipRestriction.CanEquip(this.actor.Customize.Race, this.actor.Customize.Gender);
+		return item.EquipRestriction.Value.CanEquip(this.actor.Customize.Race, this.actor.Customize.Gender);
 	}
 
 	private bool MatchesSearch(IItem item, string[]? search = null)

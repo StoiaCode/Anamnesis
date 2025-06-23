@@ -3,6 +3,18 @@
 
 namespace Anamnesis.GUI;
 
+using Anamnesis;
+using Anamnesis.Actor;
+using Anamnesis.GUI.Dialogs;
+using Anamnesis.GUI.Views;
+using Anamnesis.Memory;
+using Anamnesis.Services;
+using Anamnesis.Updater;
+using Anamnesis.Utils;
+using Anamnesis.Views;
+using Anamnesis.Windows;
+using PropertyChanged;
+using Serilog;
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
@@ -11,21 +23,9 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using Anamnesis;
-using Anamnesis.GUI.Dialogs;
-using Anamnesis.GUI.Views;
-using Anamnesis.Memory;
-using Anamnesis.Actor;
-using Anamnesis.Services;
-using Anamnesis.Updater;
-using Anamnesis.Utils;
-using Anamnesis.Views;
-using Anamnesis.Windows;
-using PropertyChanged;
 using XivToolsWpf;
-using XivToolsWpf.Windows;
 using XivToolsWpf.Extensions;
-using Serilog;
+using XivToolsWpf.Windows;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml.
@@ -136,7 +136,7 @@ public partial class MainWindow : ChromedWindow
 	protected override void OnDeactivated(EventArgs e)
 	{
 		base.OnDeactivated(e);
-		this.Opacity = SettingsService.Current.WindowOpcaticy;
+		this.Opacity = SettingsService.Current.WindowOpacity;
 	}
 
 	private void OnSettingsChanged(object? sender = null, PropertyChangedEventArgs? args = null)
@@ -164,8 +164,8 @@ public partial class MainWindow : ChromedWindow
 			}
 		}
 
-		if (SettingsService.Current.WindowOpcaticy < 1)
-			this.TransprentWhenNotInFocus = true;
+		this.TransprentWhenNotInFocus = SettingsService.Current.WindowOpacity < 1;
+		this.WindowOpacity = SettingsService.Current.WindowOpacity;
 
 		if (!this.hasSetPosition && SettingsService.Current.WindowPosition.X != 0)
 		{
@@ -213,10 +213,10 @@ public partial class MainWindow : ChromedWindow
 			// If this is a drawer view, bind to its events.
 			if (view is IDrawer drawer)
 			{
-				drawer.OnClosing += () => this.DrawerHost.IsLeftDrawerOpen = false;
-				drawer.OnClosing += () => this.DrawerHost.IsTopDrawerOpen = false;
-				drawer.OnClosing += () => this.DrawerHost.IsRightDrawerOpen = false;
-				drawer.OnClosing += () => this.DrawerHost.IsBottomDrawerOpen = false;
+				drawer.OnClosing += this.OnLeftDrawerClosing;
+				drawer.OnClosing += this.OnTopDrawerClosing;
+				drawer.OnClosing += this.OnRightDrawerClosing;
+				drawer.OnClosing += this.OnBottomDrawerClosing;
 			}
 
 			this.IsDrawerOpen = true;
@@ -263,6 +263,11 @@ public partial class MainWindow : ChromedWindow
 
 			if (view is IDrawer drawer2)
 			{
+				drawer2.OnClosing -= this.OnLeftDrawerClosing;
+				drawer2.OnClosing -= this.OnTopDrawerClosing;
+				drawer2.OnClosing -= this.OnRightDrawerClosing;
+				drawer2.OnClosing -= this.OnBottomDrawerClosing;
+
 				drawer2.OnClosed();
 			}
 
@@ -334,7 +339,7 @@ public partial class MainWindow : ChromedWindow
 					TargetService.UnpinActor(actor);
 				}
 			}
-			catch(Exception ex)
+			catch (Exception ex)
 			{
 				Log.Error("Failed to despawn actor", ex);
 			}
@@ -427,5 +432,25 @@ public partial class MainWindow : ChromedWindow
 			return;
 
 		this.DragMove();
+	}
+
+	private void OnLeftDrawerClosing()
+	{
+		this.DrawerHost.IsLeftDrawerOpen = false;
+	}
+
+	private void OnTopDrawerClosing()
+	{
+		this.DrawerHost.IsTopDrawerOpen = false;
+	}
+
+	private void OnRightDrawerClosing()
+	{
+		this.DrawerHost.IsRightDrawerOpen = false;
+	}
+
+	private void OnBottomDrawerClosing()
+	{
+		this.DrawerHost.IsBottomDrawerOpen = false;
 	}
 }

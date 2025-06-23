@@ -7,7 +7,6 @@ using PropertyChanged;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 
 /// <summary>
 /// Represents an inplace fixed-length array in memory.
@@ -46,8 +45,20 @@ public abstract class InplaceFixedArrayMemory<TValue> : MemoryBase, IEnumerable<
 	[DoNotNotify]
 	public TValue this[int index]
 	{
-		get => this.items[index];
-		set => this.items[index] = value;
+		get
+		{
+			if (index < 0 || index >= this.items.Count)
+				throw new ArgumentOutOfRangeException(nameof(index), "Index was out of range. Must be non-negative and less than the size of the collection.");
+
+			return this.items[index];
+		}
+		set
+		{
+			if (index < 0 || index >= this.items.Count)
+				throw new ArgumentOutOfRangeException(nameof(index), "Index was out of range. Must be non-negative and less than the size of the collection.");
+
+			this.items[index] = value;
+		}
 	}
 
 	/// <summary>
@@ -156,18 +167,10 @@ public abstract class InplaceFixedArrayMemory<TValue> : MemoryBase, IEnumerable<
 		}
 	}
 
-	/// <summary>Called when a property of the object changes.</summary>
-	/// <param name="sender">The sender of the event.</param>
-	/// <param name="e">The event arguments.</param>
-	protected override void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
-	{
-		this.Synchronize();
-	}
-
 	/// <summary>
 	/// Represents binding information for an array element.
 	/// </summary>
-	public class ArrayBindInfo : BindInfo
+	public sealed class ArrayBindInfo : BindInfo
 	{
 		/// <summary>Gets the index of the array element.</summary>
 		public readonly int Index;
